@@ -1,94 +1,74 @@
-# Agent 開發指南（繁體中文版）
-
-[English AGENT.md](AGENT.md) | [繁體中文 README](README.zh-TW.md)
-
-本文件是 `AGENT.md` 的中文參考版本。**原始 `AGENT.md` 保留不變**；程式、命令列參數、環境變數及工具名稱均不翻譯。
+# Agent 指示
 
 ## 開發環境
+這個專案使用 [devenv](https://devenv.sh/) 搭配 Nix，建立可重現的開發環境。
 
-專案使用 [devenv](https://devenv.sh/) 與 Nix 建立可重現的開發環境。
+## 指令
+- `devenv shell` - 進入開發 Shell
+- `devenv test` - 執行測試（目前執行 Git 版本檢查）
+- `go build` - 建置 Go 專案
+- `go run main.go` - 執行聊天應用程式
+- `go test ./...` - 執行所有 Go 測試
+- `go test <package>` - 執行指定套件的測試
+- `go mod tidy` - 下載相依套件
+- `hello` - 從開發環境執行自訂問候腳本
 
-## 常用指令
+### 應用程式指令
+- `go run chat.go` - 與 Claude 進行簡單聊天
+- `go run read.go` - 具備檔案讀取能力的聊天程式
+- `go run list_files.go` - 具備列出與讀取檔案能力的聊天程式
+- `go run bash_tool.go` - 具備檔案操作與執行 bash 指令能力的聊天程式
+- `go run edit_tool.go` - 具備完整檔案操作能力（讀取、列出、編輯、bash）的聊天程式
 
-| 指令 | 用途 |
-| --- | --- |
-| `devenv shell` | 進入 devenv 開發 Shell |
-| `devenv test` | 執行環境測試（目前包括 Git 版本檢查等） |
-| `go build` | 編譯目前套件；各階段也可用單檔方式執行 |
-| `go test ./...` | 執行 Go 測試（如有測試檔案） |
-| `go test <package>` | 執行指定套件的測試 |
-| `go mod tidy` | 整理並下載 Go 模組相依套件 |
-| `hello` | 執行 devenv 定義的問候腳本 |
+### 詳細日誌
+所有 Go 應用程式都支援 `--verbose` 旗標，以提供詳細的執行日誌：
+- `go run chat.go --verbose` - 啟用詳細日誌進行除錯
+- `go run read.go --verbose` - 查看詳細的工具執行與 API 呼叫
+- `go run edit_tool.go --verbose` - 除錯檔案操作與工具使用情況
 
-> 原始英文文件列有 `go run main.go`，但目前儲存庫**沒有 `main.go`**；請使用下方各階段的檔名。
+## 架構
+- **環境**：使用 devenv 的 Nix 開發環境
+- **Shell**：包含 Git、Go 工具鏈及自訂問候腳本
+- **結構**：透過 Anthropic API 與 Claude 連線的終端機聊天應用程式
 
-### 各階段的啟動指令
+## 程式碼風格指南
+- `devenv.nix` 設定遵循 Nix 慣例
+- 使用標準 Git 工作流程
+- 開發環境設定應可重現
 
-- `go run chat.go`：Claude 基礎對話。
-- `go run read.go`：加入檔案讀取。
-- `go run list_files.go`：加入目錄瀏覽與檔案讀取。
-- `go run bash_tool.go`：加入 Bash 指令執行。
-- `go run edit_tool.go`：加入讀取、列出、編輯檔案及 Bash。
-- `go run code_search_tool.go`：加入 ripgrep 程式碼搜尋；此版本未註冊 `edit_file`。
+## 疑難排解
 
-### 詳細紀錄（Verbose Logging）
-
-所有 Go 範例都有 `--verbose` 旗標，可列印較詳細的執行資訊：
+### 詳細日誌
+在聊天應用程式中除錯時，使用 `--verbose` 旗標取得詳細的執行日誌：
 
 ```bash
-go run chat.go --verbose
-go run read.go --verbose
 go run edit_tool.go --verbose
-go run code_search_tool.go --verbose
 ```
 
-詳細紀錄包含 API 請求、模型資訊、工具名稱與參數、檔案操作、Shell 指令、對話處理及錯誤細節。詳細紀錄使用含時間戳記與原始碼位置的日誌格式，可能包含敏感路徑或輸入內容，分享日誌前請先檢查。
+**詳細日誌顯示的內容：**
+- 對 Claude 的 API 呼叫（模型、時間、成功／失敗）
+- 工具執行詳細資訊（呼叫哪些工具、輸入參數、結果）
+- 檔案操作（讀取、寫入、列出檔案及其大小／數量）
+- Bash 指令執行（執行的指令、輸出、錯誤）
+- 對話流程（訊息處理、內容區塊）
+- 含有堆疊追蹤的錯誤詳細資訊
 
-## 程式架構
+**日誌輸出位置：**
+- **詳細模式**：包含時間戳記與檔案位置的詳細日誌會寫入 stderr
+- **一般模式**：只有必要的輸出會寫入 stdout
 
-- **Environment**：以 Nix／devenv 建立開發環境。
-- **Shell**：包含 Git、Go 工具鏈及自訂問候腳本。
-- **Application**：透過終端機與 Claude 對話的 Go 程式。
-- **Agent Loop**：接收訊息、呼叫模型、處理 Tool Use，再回傳 Tool Result，直到模型完成回答。
-- **Tool Registry**：`ToolDefinition` 包含工具名稱、說明、輸入 Schema 與執行函式。
-
-## 程式碼風格
-
-- `devenv.nix` 設定遵循 Nix 慣例。
-- 使用標準 Git 分支、提交與檢閱流程。
-- 維持環境設定可重現。
-- 避免為翻譯而更動工具名稱、指令、JSON 欄位及 API 行為。
-
-## 問題排除
-
-### API 請求失敗
-
-使用 `--verbose` 檢查驗證失敗、API 額度或速率限制等錯誤，並確認環境變數 `ANTHROPIC_API_KEY` 已設定。
-
-### 工具操作失敗
-
-從日誌確認失敗的工具、傳入參數及錯誤內容。常見原因包括檔案不存在、存取權限不足及缺少系統指令。
-
-### 回答或執行流程異常
-
-透過詳細紀錄對照模型回應的內容區塊、工具呼叫與後續訊息。這類紀錄是觀察執行流程的資料，不代表可以完整查看模型內部推理。
-
-### 效能問題
-
-檢查 API 請求耗時、回應量，以及工具是否讀取過多檔案或產生過量輸出。
+**常見疑難排解情境：**
+- **API 失敗**：檢查詳細日誌中的驗證錯誤或速率限制
+- **工具失敗**：查看究竟是哪個工具失敗，以及原因（找不到檔案、權限錯誤）
+- **非預期回應**：查看完整對話流程與 Claude 的推理過程
+- **效能問題**：查看 API 呼叫耗時及回應大小
 
 ### 環境問題
+- 確認已設定 `ANTHROPIC_API_KEY` 環境變數
+- 執行 `devenv shell` 以確保開發環境正確
+- 使用 `go mod tidy` 確保相依套件已安裝
 
-- 先確認 `ANTHROPIC_API_KEY`。
-- 如使用 devenv，重新進入 `devenv shell`。
-- 執行 `go mod tidy` 整理套件。
-- 第四階段起需要 `bash`；第六階段還需要 `rg`，部分列檔實作依賴 `find`。Windows 可使用 WSL 或相容的 Unix 環境。
-
-## 安全與操作備註
-
-- 終端機按 `Ctrl+C` 可結束聊天程式。
-- `bash` 與檔案編輯工具是教學用途，**沒有完善的沙箱與操作確認機制**；不要在重要檔案或機密資料所在目錄直接試驗。
-- 請勿提交真實 API Key。
-- 原始英文文件提到正常模式主要顯示必要輸出；實際輸出位置仍依不同 Go 範例中的 `log` 設定而定。
-
-更多逐步操作與架構圖，請閱讀 [繁體中文工作坊](README.zh-TW.md)。
+## 備註
+- 需要設定 ANTHROPIC_API_KEY 環境變數
+- 聊天應用程式提供與 Claude 對話的簡單終端機介面
+- 使用 ctrl-c 結束聊天工作階段
